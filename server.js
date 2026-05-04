@@ -3,7 +3,6 @@ const fs = require('fs');
 const path = require('path');
 
 const PORT = process.env.PORT || 3000;
-let lastSuccessfulPayload = null;
 
 const SOURCES = {
   eciPartyWise: 'https://results.eci.gov.in/ResultAcGenMay2026/partywiseresult-S25.htm',
@@ -30,38 +29,16 @@ const { promisify } = require('util');
 const execFileAsync = promisify(execFile);
 
 async function fetchText(url) {
-  const attempts = [
-    url,
-    `https://r.jina.ai/http://${url.replace(/^https?:\/\//, '')}`
-  ];
-
-  let lastError = null;
-  for (const attemptUrl of attempts) {
-    try {
-      const res = await fetch(attemptUrl, {
-        headers: {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-          'Accept-Language': 'en-IN,en;q=0.9,bn;q=0.8',
-          'Referer': 'https://results.eci.gov.in/'
-        }
-      });
-      if (!res.ok) throw new Error(`${attemptUrl} -> ${res.status}`);
-      const text = await res.text();
-      if (!text || text.length < 100) throw new Error(`Empty/short response from ${attemptUrl}`);
-      return text;
-    } catch (err) {
-      lastError = err;
-      try {
-        const { stdout } = await execFileAsync('curl', ['-L', '--silent', '--max-time', '20', attemptUrl]);
-        if (stdout && stdout.length > 100) return stdout;
-      } catch (_) {}
-    }
+  try {
+    const res = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0 ElectionDashboard' } });
+    if (!res.ok) throw new Error(`${url} -> ${res.status}`);
+    return await res.text();
+  } catch (_) {
+    const { stdout } = await execFileAsync('curl', ['-L', '--silent', '--max-time', '20', url]);
+    if (!stdout) throw new Error(`Unable to fetch ${url}`);
+    return stdout;
   }
-
-  throw new Error(lastError?.message || `Unable to fetch ${url}`);
 }
-
 
 function parseRows(html) {
   return [...html.matchAll(/<tr[^>]*>([\s\S]*?)<\/tr>/gi)].map((m) => m[1]);
@@ -134,7 +111,6 @@ async function getLiveResults() {
   };
 }
 
-
 const server = http.createServer(async (req,res)=>{
   if (req.url === '/' || req.url === '/index.html') {
     const html = fs.readFileSync(path.join(__dirname,'public/index.html'),'utf8');
@@ -143,20 +119,9 @@ const server = http.createServer(async (req,res)=>{
   if (req.url === '/api/live-results') {
     try {
       const data = await getLiveResults();
-      lastSuccessfulPayload = data;
-      res.writeHead(200, {'Content-Type':'application/json'}); res.end(JSON.stringify({...data, stale:false}));
+      res.writeHead(200, {'Content-Type':'application/json'}); res.end(JSON.stringify(data));
     } catch (e) {
-      if (lastSuccessfulPayload) {
-        res.writeHead(200, {'Content-Type':'application/json'});
-        res.end(JSON.stringify({
-          ...lastSuccessfulPayload,
-          stale:true,
-          staleReason:e.message,
-          updatedAt:new Date().toISOString()
-        }));
-      } else {
-        res.writeHead(500, {'Content-Type':'application/json'}); res.end(JSON.stringify({error:e.message, updatedAt:new Date().toISOString()}));
-      }
+      res.writeHead(500, {'Content-Type':'application/json'}); res.end(JSON.stringify({error:e.message, updatedAt:new Date().toISOString()}));
     }
     return;
   }

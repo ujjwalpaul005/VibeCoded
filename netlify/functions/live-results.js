@@ -1,4 +1,3 @@
-let lastSuccessfulPayload = null;
 const SOURCES = {
   eciPartyWise: 'https://results.eci.gov.in/ResultAcGenMay2026/partywiseresult-S25.htm',
   eciStateHome: 'https://results.eci.gov.in/ResultAcGenMay2026/ConstituencywiseS252.htm',
@@ -20,32 +19,9 @@ const pickColor = (party) => PARTY_COLOR[party] || '#334155';
 const strip = (s) => s.replace(/<[^>]+>/g, ' ').replace(/&nbsp;/g, ' ').replace(/\s+/g, ' ').trim();
 
 async function fetchText(url) {
-  const attempts = [
-    url,
-    `https://r.jina.ai/http://${url.replace(/^https?:\/\//, '')}`
-  ];
-
-  let lastError = null;
-  for (const attemptUrl of attempts) {
-    try {
-      const res = await fetch(attemptUrl, {
-        headers: {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-          'Accept-Language': 'en-IN,en;q=0.9,bn;q=0.8',
-          'Referer': 'https://results.eci.gov.in/'
-        }
-      });
-      if (!res.ok) throw new Error(`${attemptUrl} -> ${res.status}`);
-      const text = await res.text();
-      if (!text || text.length < 100) throw new Error(`Empty/short response from ${attemptUrl}`);
-      return text;
-    } catch (err) {
-      lastError = err;
-    }
-  }
-
-  throw new Error(lastError?.message || `Unable to fetch ${url}`);
+  const res = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0 ElectionDashboard' } });
+  if (!res.ok) throw new Error(`${url} -> ${res.status}`);
+  return res.text();
 }
 
 function parseRows(html) { return [...html.matchAll(/<tr[^>]*>([\s\S]*?)<\/tr>/gi)].map((m) => m[1]); }
@@ -107,33 +83,18 @@ exports.handler = async () => {
     ]);
     const trend = parsePartyWise(partyHtml);
     const constituencies = parseConstituencies(constHtml);
-    const payload = {
-      updatedAt: new Date().toISOString(),
-      sources: SOURCES,
-      trend,
-      districts: buildDistrictSummary(constituencies),
-      headlines: { abp: parseHeadlines(abpHtml), news18: parseHeadlines(n18Html) },
-      stale: false
-    };
-    lastSuccessfulPayload = payload;
     return {
       statusCode: 200,
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify(payload)
+      body: JSON.stringify({
+        updatedAt: new Date().toISOString(),
+        sources: SOURCES,
+        trend,
+        districts: buildDistrictSummary(constituencies),
+        headlines: { abp: parseHeadlines(abpHtml), news18: parseHeadlines(n18Html) }
+      })
     };
   } catch (error) {
-    if (lastSuccessfulPayload) {
-      return {
-        statusCode: 200,
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({
-          ...lastSuccessfulPayload,
-          stale: true,
-          staleReason: error.message,
-          updatedAt: new Date().toISOString()
-        })
-      };
-    }
     return {
       statusCode: 500,
       headers: { 'content-type': 'application/json' },
