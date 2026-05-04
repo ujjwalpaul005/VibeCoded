@@ -52,6 +52,11 @@ async function fetchText(url) {
   }
 
   throw new Error(lastError?.message || `Unable to fetch ${url}`);
+
+async function fetchText(url) {
+  const res = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0 ElectionDashboard' } });
+  if (!res.ok) throw new Error(`${url} -> ${res.status}`);
+  return res.text();
 }
 
 function parseRows(html) { return [...html.matchAll(/<tr[^>]*>([\s\S]*?)<\/tr>/gi)].map((m) => m[1]); }
@@ -114,6 +119,7 @@ module.exports = async (req, res) => {
     const trend = parsePartyWise(partyHtml);
     const constituencies = parseConstituencies(constHtml);
     const payload = {
+    res.status(200).json({
       updatedAt: new Date().toISOString(),
       sources: SOURCES,
       trend,
@@ -134,5 +140,9 @@ module.exports = async (req, res) => {
     } else {
       res.status(500).json({ error: error.message, updatedAt: new Date().toISOString() });
     }
+      headlines: { abp: parseHeadlines(abpHtml), news18: parseHeadlines(n18Html) }
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message, updatedAt: new Date().toISOString() });
   }
 };

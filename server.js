@@ -69,6 +69,17 @@ async function fetchText(url) {
 }
 
 
+  try {
+    const res = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0 ElectionDashboard' } });
+    if (!res.ok) throw new Error(`${url} -> ${res.status}`);
+    return await res.text();
+  } catch (_) {
+    const { stdout } = await execFileAsync('curl', ['-L', '--silent', '--max-time', '20', url]);
+    if (!stdout) throw new Error(`Unable to fetch ${url}`);
+    return stdout;
+  }
+}
+
 function parseRows(html) {
   return [...html.matchAll(/<tr[^>]*>([\s\S]*?)<\/tr>/gi)].map((m) => m[1]);
 }
@@ -163,6 +174,9 @@ const server = http.createServer(async (req,res)=>{
       } else {
         res.writeHead(500, {'Content-Type':'application/json'}); res.end(JSON.stringify({error:e.message, updatedAt:new Date().toISOString()}));
       }
+      res.writeHead(200, {'Content-Type':'application/json'}); res.end(JSON.stringify(data));
+    } catch (e) {
+      res.writeHead(500, {'Content-Type':'application/json'}); res.end(JSON.stringify({error:e.message, updatedAt:new Date().toISOString()}));
     }
     return;
   }

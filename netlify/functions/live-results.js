@@ -52,6 +52,11 @@ async function fetchText(url) {
   }
 
   throw new Error(lastError?.message || `Unable to fetch ${url}`);
+
+async function fetchText(url) {
+  const res = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0 ElectionDashboard' } });
+  if (!res.ok) throw new Error(`${url} -> ${res.status}`);
+  return res.text();
 }
 
 function parseRows(html) { return [...html.matchAll(/<tr[^>]*>([\s\S]*?)<\/tr>/gi)].map((m) => m[1]); }
@@ -140,6 +145,18 @@ exports.handler = async () => {
         })
       };
     }
+    return {
+      statusCode: 200,
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        updatedAt: new Date().toISOString(),
+        sources: SOURCES,
+        trend,
+        districts: buildDistrictSummary(constituencies),
+        headlines: { abp: parseHeadlines(abpHtml), news18: parseHeadlines(n18Html) }
+      })
+    };
+  } catch (error) {
     return {
       statusCode: 500,
       headers: { 'content-type': 'application/json' },
