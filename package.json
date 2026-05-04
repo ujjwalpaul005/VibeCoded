@@ -1,0 +1,9 @@
+{
+  "name": "vibecoded-wb-election-live",
+  "version": "1.0.0",
+  "description": "Live West Bengal election dashboard",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  }
+}
