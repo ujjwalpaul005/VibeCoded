@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>WB Bidhan Sabha 2026 Live Results</title>
+  <style>
+    body { margin: 0; font-family: Arial, sans-serif; background:#0f172a; color:#e2e8f0; }
+    .topbar { position: sticky; top: 0; background: #111827; padding: 12px 20px; border-bottom:1px solid #334155; z-index:10; }
+    .title { font-size: 1.25rem; font-weight:700; }
+    .controls { display:flex; gap:10px; margin-top:8px; align-items:center; }
+    button { background:#2563eb; color:white; border:none; padding:8px 12px; border-radius:8px; cursor:pointer; }
+    .leader { margin-top:10px; padding:10px; border-radius:8px; background:#1e293b; }
+    .container { padding: 16px 20px; }
+    .grid { display:grid; gap:12px; grid-template-columns: repeat(auto-fill,minmax(190px,1fr)); }
+    .card { border-radius:10px; padding:12px; cursor:pointer; border:1px solid rgba(255,255,255,.12); }
+    .card h4 { margin: 0 0 8px; }
+    .meta { opacity:.9; font-size:.9rem; }
+    .panel { margin-top:16px; background:#111827; border:1px solid #334155; border-radius:10px; padding:12px; }
+    .const-row { padding:8px 0; border-bottom:1px solid #1f2937; font-size:.92rem; }
+    .const-row:last-child{ border-bottom:0; }
+    .two-col { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
+  </style>
+</head>
+<body>
+  <div class="topbar">
+    <div class="title">West Bengal Bidhan Sabha 2026 — Live Dashboard</div>
+    <div class="controls">
+      <button id="refreshBtn">Refresh Now</button>
+      <span id="updatedAt">Loading...</span><span id="staleNote" style="margin-left:10px;color:#fbbf24"></span>
+    </div>
+    <div id="leaderBox" class="leader">Loading overall trend...</div>
+  </div>
+
+  <div class="container">
+    <h3>District Trend Grid</h3>
+    <div id="districtGrid" class="grid"></div>
+
+    <div class="panel" id="districtDetails">
+      Click a district to see constituency-level data.
+    </div>
+
+    <div class="two-col">
+      <div class="panel">
+        <h3>ABP Live Headlines</h3>
+        <ul id="abpList"></ul>
+      </div>
+      <div class="panel">
+        <h3>News18 Live Headlines</h3>
+        <ul id="news18List"></ul>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let dashboardData = null;
+
+    function renderLeader(trend) {
+      const box = document.getElementById('leaderBox');
+      if (!trend.leader) {
+        box.textContent = 'No leader data available right now.';
+        return;
+      }
+      box.innerHTML = `<strong>${trend.leader.party}</strong> is leading with <strong>${trend.leader.total}</strong> seats (Won: ${trend.leader.won}, Leading: ${trend.leader.leading}). Total called: ${trend.totalWon + trend.totalLeading}`;
+      box.style.borderLeft = `6px solid ${trend.leader.color}`;
+    }
+
+    function renderDistricts(districts) {
+      const grid = document.getElementById('districtGrid');
+      grid.innerHTML = '';
+      districts.forEach((d, idx) => {
+        const div = document.createElement('div');
+        div.className = 'card';
+        div.style.background = `linear-gradient(180deg, ${d.color}55 0%, #0b1220 100%)`;
+        div.innerHTML = `<h4>${d.district}</h4><div class="meta">Leader: ${d.leadingParty}</div><div class="meta">Seats counted: ${d.totalSeats}</div>`;
+        div.onclick = () => renderConstituencies(idx);
+        grid.appendChild(div);
+      });
+    }
+
+    function renderConstituencies(index) {
+      const detail = document.getElementById('districtDetails');
+      const d = dashboardData.districts[index];
+      const rows = d.constituencies.map(c => `<div class="const-row"><strong>${c.constituency}</strong> — ${c.leadingCandidate} (${c.leadingParty}) vs ${c.trailingCandidate}; Margin: ${c.leadMargin}; Status: ${c.status}</div>`).join('');
+      detail.innerHTML = `<h3>${d.district} Constituencies</h3>${rows || 'No constituency data available.'}`;
+    }
+
+    function renderHeadlines(id, list) {
+      const ul = document.getElementById(id);
+      ul.innerHTML = list.map(item => `<li>${item}</li>`).join('');
+    }
+
+    async function loadData() {
+      try {
+        const res = await fetch('/api/live-results');
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Failed to fetch');
+        dashboardData = data;
+        document.getElementById('updatedAt').textContent = `Last updated: ${new Date(data.updatedAt).toLocaleString()}`;
+        document.getElementById('staleNote').textContent = data.stale ? `Showing cached data (${data.staleReason || 'source unavailable'})` : '';
+        renderLeader(data.trend);
+        renderDistricts(data.districts);
+        renderHeadlines('abpList', data.headlines.abp || []);
+        renderHeadlines('news18List', data.headlines.news18 || []);
+      } catch (e) {
+        document.getElementById('updatedAt').textContent = `Error: ${e.message}`;
+      }
+    }
+
+    document.getElementById('refreshBtn').addEventListener('click', loadData);
+    loadData();
+    setInterval(loadData, 30000);
+  </script>
+</body>
+</html>
