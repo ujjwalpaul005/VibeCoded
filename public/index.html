@@ -27,6 +27,7 @@
     <div class="title">West Bengal Bidhan Sabha 2026 — Live Dashboard</div>
     <div class="controls">
       <button id="refreshBtn">Refresh Now</button>
+      <span id="updatedAt">Loading...</span><span id="staleNote" style="margin-left:10px;color:#fbbf24"></span>
       <span id="updatedAt">Loading...</span>
     </div>
     <div id="leaderBox" class="leader">Loading overall trend...</div>
@@ -97,6 +98,7 @@
         if (!res.ok) throw new Error(data.error || 'Failed to fetch');
         dashboardData = data;
         document.getElementById('updatedAt').textContent = `Last updated: ${new Date(data.updatedAt).toLocaleString()}`;
+        document.getElementById('staleNote').textContent = data.stale ? `Showing cached data (${data.staleReason || 'source unavailable'})` : '';
         renderLeader(data.trend);
         renderDistricts(data.districts);
         renderHeadlines('abpList', data.headlines.abp || []);

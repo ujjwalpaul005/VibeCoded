@@ -76,3 +76,31 @@ netlify login
 netlify init
 netlify deploy --prod
 ```
+
+## Fixing ECI 403: environment configuration checklist
+
+If you still see `403` from ECI, the app code is running but your host egress path is being blocked/challenged. Configure your environment like this:
+
+1. **Use a server region close to India** (Mumbai/Singapore if available).
+2. **Set a static outbound IP** (or NAT gateway) so requests are consistent.
+3. **Route upstream calls through your own proxy** and set:
+   - `UPSTREAM_PROXY_PREFIX=https://<your-proxy-domain>/fetch?url=`
+4. Optional hardening env vars:
+   - `FETCH_TIMEOUT_MS=30000`
+   - `FETCH_USER_AGENT=Mozilla/5.0 ...`
+   - `USE_JINA_FALLBACK=true`
+5. Confirm network access from your runtime:
+
+```bash
+curl -I 'https://results.eci.gov.in/ResultAcGenMay2026/partywiseresult-S25.htm'
+curl -I 'https://r.jina.ai/http://results.eci.gov.in/ResultAcGenMay2026/partywiseresult-S25.htm'
+```
+
+If (1) is `403` but (2) is `200`, keep `USE_JINA_FALLBACK=true` (default). If both are `403`, you must use a proxy/VPS relay in front of ECI.
+
+### Where to add env vars
+
+- **Vercel:** Project → Settings → Environment Variables.
+- **Netlify:** Site settings → Environment variables.
+- **Render:** Service → Environment.
+- **Docker:** `docker run -e UPSTREAM_PROXY_PREFIX=... -e FETCH_TIMEOUT_MS=30000 -p 3000:3000 wb-election-live`.
